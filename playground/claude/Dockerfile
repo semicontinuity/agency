@@ -14,6 +14,12 @@ RUN apt-get update && apt-get install -y \
     && mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
+    && install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+    && chmod a+r /etc/apt/keyrings/docker.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null \
+    && apt-get update \
+    && apt-get install -y docker-ce-cli \
     && rm -rf /var/lib/apt/lists/*
 
 # Match the container user to the host user so image-built files
@@ -24,12 +30,19 @@ ARG AGENT_USER
 ARG AGENT_UID
 ARG AGENT_GID
 
+# Host's docker group GID, so the container user can access the mounted
+# /var/run/docker.sock without a "cannot find name for group ID" warning.
+ARG DOCKER_GID
+
 # Create the host user and group at the host's UID/GID.
 # Ubuntu 24.04 ships a stock 'ubuntu' user/group at 1000:1000 — remove it first.
 # Pre-create the dirs the installer writes to, owned by the user.
 RUN userdel -r ubuntu 2>/dev/null; groupdel ubuntu 2>/dev/null; \
     groupadd -g $AGENT_GID $AGENT_USER && \
     useradd -m -u $AGENT_UID -g $AGENT_GID -s /bin/bash $AGENT_USER && \
+    DOCKER_GROUP=$(getent group $DOCKER_GID | cut -d: -f1); \
+    [ -z "$DOCKER_GROUP" ] && { groupadd -g $DOCKER_GID docker; DOCKER_GROUP=docker; }; \
+    usermod -aG "$DOCKER_GROUP" $AGENT_USER && \
     mkdir -p /home/$AGENT_USER/.claude /home/$AGENT_USER/.local && \
     chown -R $AGENT_UID:$AGENT_GID /home/$AGENT_USER
 
