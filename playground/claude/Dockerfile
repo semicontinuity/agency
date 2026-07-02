@@ -3,7 +3,7 @@ FROM ubuntu:24.04
 # Prevent interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies, ripgrep, and Node.js (required for Claude Code)
+# Install system dependencies, ripgrep, Node.js (required for Claude Code), and Python
 RUN apt-get update && apt-get install -y \
     curl \
     jq \
@@ -11,6 +11,8 @@ RUN apt-get update && apt-get install -y \
     git \
     ca-certificates \
     gnupg \
+    python3 \
+    python3-pip \
     && mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
@@ -20,6 +22,7 @@ RUN apt-get update && apt-get install -y \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null \
     && apt-get update \
     && apt-get install -y docker-ce-cli \
+    && pip3 install --break-system-packages PyYAML \
     && rm -rf /var/lib/apt/lists/*
 
 # Match the container user to the host user so image-built files
@@ -60,5 +63,6 @@ WORKDIR /home/$AGENT_USER
 # Persist Claude Code settings in a volume
 VOLUME ["/home/$AGENT_USER/.claude", "/home/$AGENT_USER/.claude.json"]
 
-# Keep container running indefinitely
+# Default entrypoint for detached use (`docker run -d` + `docker exec`).
+# claude-docker.sh overrides this with `--entrypoint claude`.
 ENTRYPOINT ["sleep", "infinity"]
